@@ -1,52 +1,94 @@
+
 -- Example: Physics
 -- Grabbity by Xcmd
 -- Updated by Dresenpai
 -- Updated 0.8.0 by Bartoleo
 math.randomseed( os.time() )
 
+local removeObject = function()
+
+end
+
+local aparatus = {
+	{ 390, 290 },
+	{ 390, 90 },
+	{ 300, 10 },
+	{ 90, 10 },
+	{ 10, 90 },
+	{ 10, 500 },
+	{ 90, 590 },
+	{ 300, 590 },
+	{ 390, 500 },
+	{ 390, 310 },
+--	{},
+--	{ 200, 10 },
+--	{ 790, 10, },
+--	{ 790, 590, beginContact = removeObject, },
+--	{ 200, 590 },
+}
+
+-- Convert the points into rectangles defining the edge
+-- by connecting each to the next
+local prev = nil
+for _, wall in ipairs( aparatus ) do
+	if not wall[ 1 ] then
+		prev = nil
+	end
+	if prev then
+		wall[ 3 ], wall[ 4 ] = prev[ 1 ], prev[ 2 ]
+			-- Copy the x1, y1 coord of the prev edge onto this one
+			-- note that lua indexes arrays starting at 1
+			-- also isn't it cool that you can assign two things at once
+	end
+	prev = wall[ 1 ] and wall
+end
+
+local myBallBodies = {}
+
+local function randomValue( multiplier )
+	return ( math.random() - 0.5 ) * multiplier
+end
+local function randomSpeed( multiplier )
+	return randomValue( multiplier ), randomValue( multiplier )
+end
+
 function love.load()
-   
-   love.graphics.setFont(love.graphics.newFont( 11))
 
-   love.physics.setMeter( 32 )
-   myWorld = love.physics.newWorld(0, 9.81*32, true)  -- updated Arguments for new variant of newWorld in 0.8.0
-   gravity="down"
-   myWorld:setCallbacks( beginContact, endContact, preSolve, postSolve )
+	love.graphics.setFont(love.graphics.newFont( 11))
 
-   myBallBody = love.physics.newBody( myWorld, 300, 400 ,"dynamic" )
-   myBallShape = love.physics.newCircleShape( 0, 0, 16 )
-   myBallFixture = love.physics.newFixture(myBallBody, myBallShape)
-   myBallBody:setMassData(0,0,1,0)
-   myBallFixture:setUserData("ball")
+	love.physics.setMeter( 32 )
+	myWorld = love.physics.newWorld(0, 9.81*32, true)  -- updated Arguments for new variant of newWorld in 0.8.0
+	gravity="none"
+	myWorld:setGravity(0, 0)
+	myWorld:setCallbacks( beginContact, endContact, preSolve, postSolve )
 
-   myWinBody = love.physics.newBody( myWorld, math.floor(math.random(100, 700)), math.floor(math.random(100, 500)) ,"dynamic" )
-   myWinShape = love.physics.newRectangleShape(  0, 0, 16, 16, 0 )
-   myWinFixture = love.physics.newFixture(myWinBody, myWinShape)
-   myWinFixture:setUserData("win")
+for o = 1, 10 do
+	for i = 1, 10 do
+		local myBallBody = love.physics.newBody( myWorld, 200 + i * 10 + o * 5, 300 + o * 10 ,"dynamic" )
+		myBallShape = love.physics.newCircleShape( 0, 0, 3 )
+		myBallFixture = love.physics.newFixture(myBallBody, myBallShape)
+		myBallFixture:setRestitution( 1.1 )
+		myBallBody:setMassData(0,0,1,0)
+		myBallBody:setLinearVelocity( randomSpeed( 300 ) )
+		myBallFixture:setUserData("ball")
+		myBallBodies[ #myBallBodies + 1 ] = myBallBody
+	end
+end
 
-   myEdgeBody1 = love.physics.newBody( myWorld, 0,0 ,"static")
-   myEdgeShape1 = love.physics.newEdgeShape( 10,10, 790,10  )
-   myEdgeFixture1 = love.physics.newFixture(myEdgeBody1, myEdgeShape1)
-   myEdgeFixture1:setUserData("edge1")
+for _, wall in ipairs( aparatus ) do
+	if wall[ 3 ] and wall[ 4 ] then
+		local body = love.physics.newBody( myWorld, 0,0 ,"static")
+		love.graphics.print( string.format( "%d,%d,%d,%d", wall[ 1 ], wall[ 2 ], wall[ 3 ], wall[ 4 ] ), 400, 25 + _* 20 )
+		local shape = love.physics.newEdgeShape( unpack( wall, 1, 4 ) )
+		local fixture = love.physics.newFixture( body, shape )
+		wall.body = body
+		wall.shape = shape
+		wall.fixture = fixture
+		fixture:setUserData( wall )
+	end
+end
 
-   myEdgeBody2 = love.physics.newBody( myWorld, 0,0 ,"static")
-   myEdgeShape2 = love.physics.newEdgeShape( 790,10, 790,590  )
-   myEdgeFixture2 = love.physics.newFixture(myEdgeBody2, myEdgeShape2)
-   myEdgeFixture2:setUserData("edge2")
-   
-   myEdgeBody3 = love.physics.newBody( myWorld, 0,0 ,"static")
-   myEdgeShape3 = love.physics.newEdgeShape( 10,590, 790,590  )
-   myEdgeFixture3 = love.physics.newFixture(myEdgeBody3, myEdgeShape3)
-   myEdgeFixture3:setUserData("edge3")
-
-   myEdgeBody4 = love.physics.newBody( myWorld, 0,0 ,"static")
-   myEdgeShape4 = love.physics.newEdgeShape( 10,10, 10,590  )
-   myEdgeFixture4 = love.physics.newFixture(myEdgeBody4, myEdgeShape4)
-   myEdgeFixture4:setUserData("edge4")
-
-   texts = {}
-
-   prepostsolve = false
+	prepostsolve = false
 
 end
 
@@ -55,12 +97,16 @@ function love.update( dt )
 end
 
 function love.draw()
-   love.graphics.line(myEdgeBody1:getWorldPoints(myEdgeShape1:getPoints()))
-   love.graphics.line(myEdgeBody2:getWorldPoints(myEdgeShape2:getPoints()))
-   love.graphics.line(myEdgeBody3:getWorldPoints(myEdgeShape3:getPoints()))
-   love.graphics.line(myEdgeBody4:getWorldPoints(myEdgeShape4:getPoints()))
-   love.graphics.circle("line", myBallBody:getX(), myBallBody:getY(), myBallShape:getRadius())
-   love.graphics.polygon("fill", myWinBody:getWorldPoints(myWinShape:getPoints()))
+	for _, wall in ipairs( aparatus ) do
+		if wall.body and wall.shape then
+		   love.graphics.line( wall.body:getWorldPoints( wall.shape:getPoints() ) )
+		end
+	end
+   
+	for _, myBallBody in ipairs( myBallBodies ) do
+	   love.graphics.circle("line", myBallBody:getX(), myBallBody:getY(), myBallShape:getRadius())
+	end
+
    love.graphics.print( "gravity:"..gravity, 25, 25 )
    if prepostsolve then
       love.graphics.print( "space : disable preSolve/postSolve Logging", 400, 25 )
@@ -68,15 +114,13 @@ function love.draw()
       love.graphics.print( "space : enable preSolve/postSolve Logging", 400, 25 )
    end
    love.graphics.print( "arrows : change gravity direction", 400, 36 )
-   if #texts > 48 then
-      table.remove(texts,1)
-   end
-   if #texts > 96 then
-      table.remove(texts,1)
-   end
-   for i,v in ipairs(texts) do
-     love.graphics.print( v, 25, 37+11*i )
-   end
+for _, wall in ipairs( aparatus ) do
+	if wall[ 3 ] and wall[ 4 ] then
+		local body = love.physics.newBody( myWorld, 0,0 ,"static")
+		love.graphics.print( string.format( "%d,%d,%d,%d", wall[ 1 ], wall[ 2 ], wall[ 3 ], wall[ 4 ] ), 400, 25 + _* 20 )
+	end
+end
+
 end
 
 function love.keypressed( key )
@@ -150,17 +194,13 @@ function coll( a, b, c, ctype,detail )
    --local vx, vy = c:getVelocity()
    local nx, ny = c:getNormal()
    local aa = a:getUserData()
+	if aa[ ctype ] then
+		aa[ ctype ]( aa )
+	end
    local bb = b:getUserData()
+	if bb[ ctype ] then
+		bb[ ctype ]( bb )
+	end
 
-   table.insert(texts, ctype .. " Collision : " .. aa .. " and " .. bb)
-   if detail then 
-     table.insert(texts, "Position: " .. ifnil(px1,"nil") .. "," .. ifnil(py1,"nil") .. "," .. ifnil(px2,"nil") .. "," .. ifnil(py2,"nil") )
-     --table.insert(texts, "Velocity: " .. vx .. "," .. vy )
-     table.insert(texts, "Normal: " .. nx .. "," .. ny )
-     table.insert(texts, "Friction: " .. f )
-     table.insert(texts, "Restitution: " .. r )
-     --table.insert(texts, "Separation: " .. s )
-   end
-   table.insert(texts, "")
 end
 
