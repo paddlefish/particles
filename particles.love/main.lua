@@ -4,27 +4,22 @@
 -- Updated by Dresenpai
 -- Updated 0.8.0 by Bartoleo
 math.randomseed( os.time() )
+local needBall = 100
 
 local removeObject = function()
 
 end
 
 local aparatus = {
-	{ 390, 290 },
-	{ 390, 90 },
-	{ 300, 10 },
+	{ 590, 90 },
+	{ 500, 10 },
 	{ 90, 10 },
 	{ 10, 90 },
 	{ 10, 500 },
 	{ 90, 590 },
-	{ 300, 590 },
-	{ 390, 500 },
-	{ 390, 310 },
---	{},
---	{ 200, 10 },
---	{ 790, 10, },
---	{ 790, 590, beginContact = removeObject, },
---	{ 200, 590 },
+	{ 500, 590 },
+	{ 590, 500 },
+	{ 590, 90 },
 }
 
 -- Convert the points into rectangles defining the edge
@@ -44,12 +39,26 @@ for _, wall in ipairs( aparatus ) do
 end
 
 local myBallBodies = {}
+local log = {}
 
 local function randomValue( multiplier )
 	return ( math.random() - 0.5 ) * multiplier
 end
 local function randomSpeed( multiplier )
-	return randomValue( multiplier ), randomValue( multiplier )
+	local angle = randomValue( math.pi / 2 ) + math.pi
+	local speed = randomValue( multiplier )
+	return speed * math.cos( angle ), speed * math.sin( angle )
+end
+local function addBall( x, y )
+	local myBallBody = love.physics.newBody( myWorld, x, y, "dynamic" )
+	myBallShape = love.physics.newCircleShape( 0, 0, 0.001 )
+	myBallFixture = love.physics.newFixture(myBallBody, myBallShape)
+	myBallFixture:setRestitution( 1.1 )
+	myBallBody:setMassData(0,0,1,0)
+	myBallBody:setLinearVelocity( randomSpeed( 500 ) )
+	myBallFixture:setUserData { ball = true }
+	myBallBodies[ myBallBody ] = true
+	log[ #log + 1 ] = { "Added ball at %d, %d", x, y }
 end
 
 function love.load()
@@ -62,64 +71,93 @@ function love.load()
 	myWorld:setGravity(0, 0)
 	myWorld:setCallbacks( beginContact, endContact, preSolve, postSolve )
 
-for o = 1, 10 do
-	for i = 1, 10 do
-		local myBallBody = love.physics.newBody( myWorld, 200 + i * 10 + o * 5, 300 + o * 10 ,"dynamic" )
-		myBallShape = love.physics.newCircleShape( 0, 0, 3 )
-		myBallFixture = love.physics.newFixture(myBallBody, myBallShape)
-		myBallFixture:setRestitution( 1.1 )
-		myBallBody:setMassData(0,0,1,0)
-		myBallBody:setLinearVelocity( randomSpeed( 300 ) )
-		myBallFixture:setUserData("ball")
-		myBallBodies[ #myBallBodies + 1 ] = myBallBody
+	for _, wall in ipairs( aparatus ) do
+		if wall[ 3 ] and wall[ 4 ] then
+			local body = love.physics.newBody( myWorld, 0,0 ,"static")
+			love.graphics.print( string.format( "%d,%d,%d,%d", wall[ 1 ], wall[ 2 ], wall[ 3 ], wall[ 4 ] ), 400, 25 + _* 20 )
+			local shape = love.physics.newEdgeShape( unpack( wall, 1, 4 ) )
+			local fixture = love.physics.newFixture( body, shape )
+			wall.body = body
+			wall.shape = shape
+			wall.fixture = fixture
+			wall.wall = true
+			fixture:setUserData( wall )
+		end
 	end
-end
-
-for _, wall in ipairs( aparatus ) do
-	if wall[ 3 ] and wall[ 4 ] then
-		local body = love.physics.newBody( myWorld, 0,0 ,"static")
-		love.graphics.print( string.format( "%d,%d,%d,%d", wall[ 1 ], wall[ 2 ], wall[ 3 ], wall[ 4 ] ), 400, 25 + _* 20 )
-		local shape = love.physics.newEdgeShape( unpack( wall, 1, 4 ) )
-		local fixture = love.physics.newFixture( body, shape )
-		wall.body = body
-		wall.shape = shape
-		wall.fixture = fixture
-		fixture:setUserData( wall )
-	end
-end
 
 	prepostsolve = false
 
 end
 
+local function emForce( body )
+	local dx, dy = body:getLinearVelocity()
+--	local dist = math.sqrt( dx * dx + dy * dy )
+--	local angle = math.atan2( dx, dy )
+--	angle = angle + math.pi / 2
+--	local x2, y2 = dist * math.cos( angle ), dist * math.sin( angle )
+	return dy, -dx
+end
+
+local function destroy( fixture )
+	local a = fixture:getBody()
+	if myBallBodies[ a ] then
+		log[ #log + 1 ] = { "Destroyed ball %s", tostring( a ) }
+		myBallBodies[ a ] = nil
+		a:destroy()
+		needBall = needBall + 1
+	end
+end
+
+local t = 0.1
 function love.update( dt )
-   myWorld:update( dt )
+    for myBallBody in pairs( myBallBodies ) do
+        myBallBody:applyForce( emForce( myBallBody ) )
+		local dx, dy = myBallBody:getLinearVelocity()
+		local speed = math.sqrt( dx * dx + dy * dy )
+		if speed < 50 then
+			destroy( myBallBody:getFixtureList()[ 1 ] )
+		end
+    end
+	myWorld:update( dt )
+	if t - dt < 0 then
+		if needBall > 0 then
+			addBall( 200, 110 )
+			needBall = needBall - 1
+		end
+		t = 0.1
+	else
+		t = t - dt
+	end
 end
 
 function love.draw()
+		love.graphics.setColor( 125, 125, 125 )
 	for _, wall in ipairs( aparatus ) do
 		if wall.body and wall.shape then
 		   love.graphics.line( wall.body:getWorldPoints( wall.shape:getPoints() ) )
 		end
 	end
    
-	for _, myBallBody in ipairs( myBallBodies ) do
-	   love.graphics.circle("line", myBallBody:getX(), myBallBody:getY(), myBallShape:getRadius())
+	for myBallBody in pairs( myBallBodies ) do
+		local x, y = myBallBody:getPosition()
+		love.graphics.setColor(255, 0, 0)
+		love.graphics.circle("line", x, y, 1 + myBallShape:getRadius())
 	end
 
-   love.graphics.print( "gravity:"..gravity, 25, 25 )
-   if prepostsolve then
-      love.graphics.print( "space : disable preSolve/postSolve Logging", 400, 25 )
-   else
-      love.graphics.print( "space : enable preSolve/postSolve Logging", 400, 25 )
-   end
-   love.graphics.print( "arrows : change gravity direction", 400, 36 )
-for _, wall in ipairs( aparatus ) do
-	if wall[ 3 ] and wall[ 4 ] then
-		local body = love.physics.newBody( myWorld, 0,0 ,"static")
-		love.graphics.print( string.format( "%d,%d,%d,%d", wall[ 1 ], wall[ 2 ], wall[ 3 ], wall[ 4 ] ), 400, 25 + _* 20 )
+	love.graphics.setColor( 125, 125, 125 )
+	love.graphics.print( "gravity:"..gravity, 25, 25 )
+	if prepostsolve then
+	  love.graphics.print( "space : disable preSolve/postSolve Logging", 400, 25 )
+	else
+	  love.graphics.print( "space : enable preSolve/postSolve Logging", 400, 25 )
 	end
-end
+	love.graphics.print( "arrows : change gravity direction", 400, 36 )
+	for _, line in ipairs( log ) do
+		love.graphics.print( string.format( unpack( line, 1, line.n ) ), 400, 25 + _ * 25 )
+	end
+	while #log > 15 do
+		table.remove( log, 1 )
+	end
 
 end
 
@@ -160,23 +198,28 @@ function love.keypressed( key )
 end
 
 function beginContact( a, b, c )
-   coll( a, b, c, "beginContact",true )
 end
 
 function endContact( a, b, c )
-   coll( a, b, c, "endContact",true )
+   local aa = a:getUserData()
+   local bb = b:getUserData()
+	if aa == bb then
+		return
+	end
+	if aa.wall or bb.wall then
+		if aa.ball then
+			destroy( a )
+		end
+		if bb.ball then
+			destroy( b )
+		end
+	end
 end
 
 function preSolve( a, b, c )
-   if prepostsolve then
-     coll( a, b, c, "preSolve",false )
-   end
 end
 
 function postSolve( a, b, c )
-   if prepostsolve then
-     coll( a, b, c, "postSolve",false )
-   end
 end
 
 local function ifnil(ptest,preturn)
@@ -187,20 +230,5 @@ local function ifnil(ptest,preturn)
 end
 
 function coll( a, b, c, ctype,detail )
-
-   local f, r = c:getFriction(), c:getRestitution()
-   --local s = c:getSeparation()   
-   local px1, py1, px2, py2 = c:getPositions()
-   --local vx, vy = c:getVelocity()
-   local nx, ny = c:getNormal()
-   local aa = a:getUserData()
-	if aa[ ctype ] then
-		aa[ ctype ]( aa )
-	end
-   local bb = b:getUserData()
-	if bb[ ctype ] then
-		bb[ ctype ]( bb )
-	end
-
 end
 
