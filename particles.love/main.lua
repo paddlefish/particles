@@ -11,6 +11,8 @@ local needBall = 100
 local myBallBodies = {}
 local log = {}
 local emForceConstant = 1
+local pulseFrequency = 12.5
+local pulseDirection = 1
 
 local aparatus = {
 	{ 590, 90 },
@@ -53,8 +55,8 @@ end
 ----------------------------------------------------------------------
 
 local function randomSpeed( multiplier )
-	local angle = randomValue( math.pi / 2 ) + math.pi
-	local speed = randomValue( multiplier )
+	local angle = randomValue( 2* math.pi )
+	local speed = multiplier -- randomValue( multiplier )
 	return speed * math.cos( angle ), speed * math.sin( angle )
 end
 
@@ -66,7 +68,7 @@ local function addBall( x, y )
 	myBallFixture = love.physics.newFixture(myBallBody, myBallShape)
 	myBallFixture:setRestitution( 1.1 )
 	myBallBody:setMassData(0,0,1,0)
-	myBallBody:setLinearVelocity( randomSpeed( 500 ) )
+	myBallBody:setLinearVelocity( randomSpeed( 50 ) )
 	myBallFixture:setUserData { ball = true }
 	myBallBodies[ myBallBody ] = true
 	log[ #log + 1 ] = { "Added ball at %d, %d", x, y }
@@ -74,16 +76,21 @@ end
 
 ----------------------------------------------------------------------
 
-local function emForce( body )
+local function emForce( body, time )
 	local dx, dy = body:getLinearVelocity()
 	local x, y = body:getPosition()
 	x = 300 - x
 	y = 300 - y
-	local dist = emForceConstant * math.sqrt( x * x + y * y ) / 300
---	local angle = math.atan2( dx, dy )
---	angle = angle + math.pi / 2
---	local x2, y2 = dist * math.cos( angle ), dist * math.sin( angle )
-	return dist *dy, dist * (-dx)
+	local dist = emForceConstant * .5
+	local fx, fy = dist *dy, dist * (-dx)
+	if y < 30 and y > -30 then
+		pulseDirection = math.sin( 2 * math.pi * time / pulseFrequency )
+--		if math.mod( time, pulseFrequency ) < ( pulseFrequency / 2 ) then
+--			pulseDirection = -1
+--		end
+		fy = fy + pulseDirection * emForceConstant * 5
+	end
+	return fx, fy
 end
 
 ----------------------------------------------------------------------
@@ -131,10 +138,12 @@ end
 ----------------------------------------------------------------------
 
 do
+	local pulseTime = 0
 	local t = 0.1
 	function love.update( dt )
+		pulseTime = pulseTime + dt
 		for myBallBody in pairs( myBallBodies ) do
-			myBallBody:applyForce( emForce( myBallBody ) )
+			myBallBody:applyForce( emForce( myBallBody, pulseTime ) )
 			local dx, dy = myBallBody:getLinearVelocity()
 			local speed = math.sqrt( dx * dx + dy * dy )
 			if speed < 50 then
@@ -144,7 +153,7 @@ do
 		myWorld:update( dt )
 		if t - dt < 0 then
 			if needBall > 0 then
-				addBall( 200, 110 )
+				addBall( 200, 300 )
 				needBall = needBall - 1
 			end
 			t = t + 0.1
@@ -157,6 +166,13 @@ end
 ----------------------------------------------------------------------
 
 function love.draw()
+
+	if pulseDirection > 0 then
+		love.graphics.setColor( 125, 125, 125 + 125 * pulseDirection )
+	else
+		love.graphics.setColor( 125, 125 + 125 * ( 0 - pulseDirection ), 125 )
+	end
+	love.graphics.rectangle("fill", 0, 270, 600, 60 )
 		love.graphics.setColor( 125, 125, 125 )
 	for _, wall in ipairs( aparatus ) do
 		if wall.body and wall.shape then
@@ -171,7 +187,7 @@ function love.draw()
 	end
 
 	love.graphics.setColor( 125, 125, 125 )
-	love.graphics.print( "EM Force Constant:"..emForceConstant, 25, 25 )
+	love.graphics.print( "EM :"..emForceConstant .. " FREQ:" .. pulseFrequency, 25, 25 )
 --	if prepostsolve then
 --	  love.graphics.print( "space : disable preSolve/postSolve Logging", 400, 25 )
 --	else
@@ -202,18 +218,16 @@ function love.keypressed( key )
       for i,v in ipairs(myWorld:getBodyList( )) do
         v:setAwake( true )
       end
---   elseif key == "left" then
---      myWorld:setGravity(-9.81*32, 0)
---      gravity="left"
---      for i,v in ipairs(myWorld:getBodyList( )) do
---        v:setAwake( true )
---      end
---  elseif key == "right" then
---      myWorld:setGravity(9.81*32, 0)
---      gravity="right"
---      for i,v in ipairs(myWorld:getBodyList( )) do
---        v:setAwake( true )
---      end
+   elseif key == "left" then
+		pulseFrequency = pulseFrequency + 0.1
+      for i,v in ipairs(myWorld:getBodyList( )) do
+        v:setAwake( true )
+      end
+  elseif key == "right" then
+		pulseFrequency = pulseFrequency - 0.1
+      for i,v in ipairs(myWorld:getBodyList( )) do
+        v:setAwake( true )
+      end
    end
 
    if key == " " then
